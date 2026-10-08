@@ -1,0 +1,21 @@
+# assets/solar — sources (all fetched 2026-10-06; rebuild with `python3 v4/levels/solar/build_assets.py`, raw downloads live in `raw/`)
+
+| file | source | licence | processing |
+|---|---|---|---|
+| `elements.json` -> `planets` | JPL "Keplerian Elements for Approximate Positions of the Major Planets", Table 1 (1800-2050), https://ssd.jpl.nasa.gov/planets/approx_pos.html (scraped from the page) | NASA/JPL, public domain | none (a,e,I,L,long.peri,long.node + rates per century). Earth is run as an exact circle (e=0, I=0, a=1 AU) at runtime so it matches plan.EARTHC |
+| `elements.json` -> `small` | JPL SBDB API https://ssd-api.jpl.nasa.gov/sbdb.api (Pluto, Eris, Haumea, Makemake, Sedna, Ceres, Halley 1P, Encke 2P, 67P, 109P Swift-Tuttle, C/1995 O1 Hale-Bopp, C/2020 F3) | NASA/JPL, public domain | JSON gives 3-4 significant digits only. Halley overridden with published osculating elements (a 17.834, e 0.96714, i 162.263, node 58.420, peri 111.332, perihelion 1986-02-09.45) |
+| `belt.f32` (15,000 = 12,000 numbered main-belt asteroids brightest by H + 3,000 inner/outer/Cybele), `trojans.f32` (3,000 Jupiter Trojans), `kuiper.f32` (2,997 TNOs), `centaurs.f32` (500), `neo.f32` (1,499 Apollo/Aten/Amor/Atira) | JPL SBDB query API https://ssd-api.jpl.nasa.gov/sbdb_query.api (a,e,i,om,w,ma,epoch,H; sorted by H) | NASA/JPL, public domain | Float32 records [a, e, i, node, peri, M0], M0 advanced to JD 2461319.5 (2026-10-06); positions solved on the GPU |
+| `craft.json` | JPL Horizons API https://ssd.jpl.nasa.gov/api/horizons.api, vectors, centre 500@10 (Sun), ecliptic J2000, monthly steps from launch to 2026-10-06 plus a 1-day step for velocity: Voyager 1/2, Pioneer 10/11, New Horizons (only Voyagers + New Horizons are drawn) | NASA/JPL, public domain | km -> AU. Voyager 1 is 172 AU from the Sun on 2026-10-06 |
+| `sun.jpg`, `mercury.jpg`, `venus.jpg`, `venus_cloud.jpg`, `earth.jpg`, `mars.jpg`, `jupiter.jpg`, `saturn.jpg`, `uranus.jpg`, `neptune.jpg`, `moon.jpg` | Solar System Scope textures, https://www.solarsystemscope.com/textures/ (based on NASA imagery: Blue Marble, MESSENGER, Viking, Cassini, LRO) | CC BY 4.0, Solar System Scope | resized to 2048x1024 (Earth, Jupiter) or 1024x512, JPEG q86 |
+| `saturn_ring.png` | Solar System Scope `2k_saturn_ring_alpha.png` (Cassini-derived radial ring profile) | CC BY 4.0 | none |
+| (code) pole directions | IAU WGCCRE 2015 rotational elements (RA/Dec of the north poles) | published constants | -> ecliptic J2000 in `levels/solar/orbits.js` |
+| (code) heliosphere | Voyager 1 heliopause crossing 121.6 AU (2012), termination shock 94 AU (V1, 2004) / 84 AU (V2, 2007); nose direction toward ecliptic lon 255.4, lat 5.1 (IBEX interstellar-wind direction) | published values | analytic shell, not a simulation; tail length and shape are schematic |
+| `refs/solar/*` | NASA SDO AIA 304 image of the Sun (public domain), NASA heliosphere infographic (public domain), Cassini Saturn (CC BY-SA) | see files | reference only, not used at runtime |
+
+Not real / procedural: the Sun's surface (cells, spots, faculae, limb darkening, corona streamers, prominences are shader-generated, only the large-scale brightness is modulated by the SSS map), planet atmospheres' halos, the satellite colours (flat colours for Io, Europa, Ganymede, Callisto, Titan, Rhea, Titania, Triton), the interstellar-wind streamlines (potential flow around a sphere), the size exaggeration of every body.
+Dwarf planets and comets are drawn as orbit + dot (no maps). Pluto/Eris/Haumea/Makemake/Ceres have no textures.
+
+
+Round-2 update: `craft.json` trajectories re-fetched from JPL Horizons with dense steps (Voyager 1: 1 day to 1982 then 10 days; Voyager 2: 1 day to 1990 then 10 days; New Horizons: 2 days to 2008 then 10 days) so flyby bends are drawn from data, not interpolated. Bow shock shell removed (IBEX/Voyager indicate none).
+
+Round-3 update (no new files): planet sizes now use a compressed-but-ordered law (radius px = Earth px x (R/R_E)^0.5, stated in the note label) so inner planets stay legible beside Jupiter; Sun disc/glow shrink with zoom so Venus/Earth are not buried; heliosphere is a comet-shaped open-tailed shell (nose 121 AU, tail >500 AU, schematic) with thin rim light; termination shock shell fainter. Voyager kinks are the real Jupiter/Saturn/Uranus/Neptune flybys from dense Horizons data.

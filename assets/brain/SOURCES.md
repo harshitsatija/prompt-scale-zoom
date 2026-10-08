@@ -1,0 +1,78 @@
+# assets/brain — sources, licences, processing
+
+Fetched 2026-10-06 via TemplateFlow's S3 mirror (https://templateflow.s3.amazonaws.com/) — all inputs are public research templates. Build scripts: `v4/levels/brain/{fetch.sh,register.py,cortex.py,cap.py,anat.py,locus.py}`.
+
+## Inputs (not shipped; downloaded to a cache dir by fetch.sh)
+| input | URL | author / licence | used for |
+|---|---|---|---|
+| fsaverage pial / white surfaces, sulc (FreeSurfer fsaverage, 163 842 vertices per hemisphere) | `tpl-fsaverage/tpl-fsaverage_hemi-{L,R}_den-164k_{pial,white}.surf.gii`, `_sulc.shape.gii` | FreeSurfer / Fischl et al. 1999 (doi:10.1002/(sici)1097-0193(1999)8:4<272::aid-hbm10>3.0.co;2-4); FreeSurfer licence (free research use) | the real folded cortex (mesh + the cortex-ribbon section) |
+| Desikan-Killiany parcellation on fsaverage | `tpl-fsaverage_hemi-L_den-164k_atlas-Desikan2006_seg-aparc_desc-curated_dseg.label.gii` | Desikan et al. 2006; FreeSurfer licence | locating V1 (pericalcarine), left frontal (rostral middle frontal + pars triangularis), precentral hand knob |
+| ICBM152 2009b nonlinear asymmetric T1, 0.5 mm | `tpl-MNI152NLin2009bAsym/tpl-MNI152NLin2009bAsym_res-1_T1w.nii.gz` | Fonov, Evans, McKinstry, Almli, Collins 2009/2011 (doi:10.1016/j.neuroimage.2010.07.033); MNI/McGill licence (free use with notice) | the section plate: real grey/white contrast, cerebellar arbor vitae, brainstem, callosum, ventricles |
+| ICBM152 2009c T1 + FreeSurfer-style `aseg` segmentation, 1 mm | `tpl-MNI152NLin2009cAsym/…_res-01_seg-aseg_dseg.nii.gz` | same (MNI licence); aseg labels by TemplateFlow | thalamus, caudate, putamen, hippocampus, amygdala, brainstem, cerebellum, optic chiasm, ventricles |
+| MASSP20 subcortical/brainstem atlas (1 mm, 2009c) | `…_res-01_atlas-MASSP20_dseg.nii.gz` | Bazin et al. 2020 (Front. Neurosci., MASSP); CC-BY | red nucleus, substantia nigra, STN, PAG, colliculi, GP, fornix, commissures, internal capsule, geniculate nuclei |
+| MIAL67 thalamic nuclei (1 mm, 2009c) | `…_res-01_atlas-MIAL67ThalamicNuclei_dseg.nii.gz` | Najdenovska et al. 2018 (Sci. Data), MIAL; open | the seven thalamic nuclear groups drawn on the thalamus |
+| Reference pictures (viewing only, not shipped in the level) | Wikimedia Commons `Human_brain_midsagittal_cut.JPG` (CC BY 2.5), `Human_brain_midsagittal_cut_color.png` (CC BY 2.5), Gray768.png (public domain) saved to `v4/refs/brain/` | | art-direction comparison |
+
+## Outputs in this directory
+| file | what it is / what was done |
+|---|---|
+| `cortexL.bin` (5.6 MB) | left fsaverage **pial** surface, all faces touching x_fs <= -7.6 mm (i.e. the kept half), float32 positions already in head-frame metres (fs mm x 0.97e-3 -> a 3% smaller, female-sized brain), per-vertex int8 sulcal depth, uint8 hot-spot weights (V1 / left frontal / hand-knob motor, smoothed over the mesh) and uint8 Desikan parcel. Header: uint32 nV, nF. |
+| `cap_sdf.bin.gz` | gzip of float16 RGBA [nz/2][nx/2] (0.25 mm texels): signed distance (mm, + inside) to the pial-surface section, the white-surface section, the tissue outline, and a heavily smoothed outline (for the CSF band / dura). Sections = exact plane (x_fs = -8 mm) intersection of the real fsaverage meshes (trimesh), rasterised at 0.125 mm, EDT'd and smoothed. |
+| `cap_t1.png` | the 0.5 mm ICBM152-2009b T1 resampled (cubic) onto the plane at 0.125 mm, normalised by the median white-matter intensity. |
+| `cap_b.png` | atlas tint (RGB) + coverage (A): MASSP20 + MIAL67 + aseg indicators, blurred in volume space, argmax per pixel. |
+| `cap_c.png` | x-ray footprints of V1 / frontal / motor (R,G,B) + aseg-cortex validity (A) at 0.25 mm. |
+| `cap_d.png` | T1 unsharp detail (R), structure-boundary lines (G), in-structure weight (B). |
+| `cap_e.png` | projections along x of the left hippocampus and amygdala (the structures that lie behind the cut plane), drawn as ghosts. |
+| `cap.json`, `locus.json`, `anat.json` | geometry of the plate, the cortical locus (see below), anchor points and tract splines. |
+
+## Registration and coordinates
+* fsaverage space -> ICBM152-2009 space: 9-parameter fit (`register.py`) of gyral-crown pial vertices to the outer boundary of the aseg cerebrum: scale (1.059, 1.067, 1.077), shifts < 1.7 mm, rotations < 0.6 deg. Verified by overlaying the pial (red) and white (green) surface sections on the T1 slice at several x (they follow the real cortical ribbon within ~1 px at 0.3 mm).
+* Head frame: x = fs y (anterior), y = fs z (superior), z = fs x (+ toward her right = toward the viewer). The section plane is fs x = -8 mm (8 mm left of the midline), the half with x < -8 is kept (her left hemisphere, left cerebellum, left half of the brainstem).
+* Size: fsaverage extent (173 mm antero-posterior) x 0.97 = 168 mm; width 143 mm; height with cerebellum/brainstem ~ 120 mm.
+
+## Locus Q (ctx.shared.locus)
+`locus.py` walks the plane ∩ pial polylines, in the frontal-dorsal region, and scores points where (a) the ribbon is cut square-on (white surface lies along -normal), (b) the cut thickness is ~2.8 mm, (c) the crown is flat for +-2 mm and (d) the outward normal is near 60 deg above anterior (matches `geom.thq`). Result: pos = (0.0469, 0.0532, 0) m, normal = (0.537, 0.844, 0), cortical thickness at that cut 3.6 mm, on the superior frontal gyrus crown.
+
+## What is real and what is stylised (honest notes)
+* Real: the pial surface (all gyri and sulci), the cortex/white-matter boundary, the T1 tissue contrast everywhere (cerebellar folia/arbor vitae, callosum, ventricles, brainstem), the atlas outlines of the nuclei, the plane-cut ribbon thickness, the locations of V1 / frontal / hand knob (Desikan parcels; hand knob ~ MNI (-38,-22,62)).
+* Stylised: all colours; the nuclei fills; the tract splines (hand-placed from textbook/atlas MNI coordinates: corticospinal, optic radiation, frontal->motor via SLF); the spinal-cord stub below z_fs = -56 (the template ends at the foramen magnum and the section plane at x = -8 mm is lateral to the real cord, so the stub is a procedural continuation of the medulla); the meningeal CSF band and dura line (drawn from the pial outline at 0-2 mm and 2.45 mm); the grain / laminar bands / radial fibre striation that appear only when zoomed in (procedural).
+* Not present (gaps): arterial tree and superior sagittal sinus, falx/tentorium, pineal/pituitary/optic chiasm (they are on the midline, 8 mm behind the removed half), hippocampus and amygdala are shown only as x-ray ghosts (they lie lateral to the plane).
+
+## Round-2 changes (fidelity fixes after blind review)
+* `cap_sdf.bin.gz` is now stored at full half-float precision with the SDFs clamped to +-6 mm (+-9 mm for the heavy outline). The previous build dropped 2 mantissa bits, which terraced the signed-distance field into the contour ripples / faceted CSF band seen at 1.7 cm and 4 mm fields of view. (cap.py)
+* Nucleus tints are now applied as a hue transfer onto the real ICBM152 T1 luminance (not as flat fills), with a bevel from the label coverage, so the MR structure of the thalamus / brainstem shows through; brainstem tint toned from saturated lilac to a pale violet. The hippocampus / amygdala x-ray projections are drawn as thin contours (they lie behind the cut plane) instead of translucent fills that muddied the brainstem. (cap.py, cap.glsl.js)
+* Label anchors are snapped onto the real pial-section contour (`labels.py` -> `anat.json["label"]`: V1 at the occipital pole / calcarine, frontal at the antero-superior convexity, motor at the crown over the hand area). Run `labels.py` AFTER `anat.py` (anat.py rewrites anat.json).
+* Section plane is deliberately NOT the exact midline: it is fs x = -8 mm (8 mm left of the midline) so that the cortical ribbon is cut square-on (needed for the cortex level / locus). Midline-only structures (pituitary, optic chiasm body, pineal, falx, superior sagittal sinus, septum pellucidum) lie in the removed half and are therefore not on the plate; aseg "optic chiasm" and fornix/commissure atlas labels are shown where they cross the plane. Labelled on screen: "Section plane: 8 mm left of the midline".
+* Histology shader (cap.glsl.js): sub-pixel features now fade out smoothly (no hairline / speck scratches at 1.7 cm), curved basal dendrites, denser pyramidal + granule cells, neuropil stipple, arterioles + capillaries (the branch rectangles are gone), pial vessels attached to the pia, arachnoid trabeculae and arachnoid membrane line. All procedural (stylised), as before.
+
+
+## Round-3 changes (blind-review fixes; all scripts in levels/brain/, run cap.py -> anat.py -> labels.py)
+* **Brainstem / cord** (cap.py): the template ends at fs z ~ -66 and the section plane is lateral to the real cord, so medulla + cervical cord below the aseg brainstem are now ONE smooth procedural tube (half-width 12 mm at the pons-medulla junction -> 6 mm at the cervicomedullary junction -> 4.5 mm cervical cord, leaning back 8 mm over 55 mm) with a cisterna-magna gap to the real cerebellar tonsil; previously a fat lavender slab + abrupt stub. The brainstem is split along its real axis into midbrain / pons / medulla / cord tints (soft transitions, T1 luminance kept), with ventral corticospinal strip, pontomesencephalic / pontomedullary grooves, rim shading (shader, tG.R = signed distance). The flat chop of the cerebellum at the template edge (nearest-neighbour extrusion of the last slice) is replaced by a rounded inferior surface.
+* **Cerebellum** (cap.py, cap.glsl.js): own colour ramp (plum cortex / cream white matter) with bicubic T1 + unsharp detail so the arbor vitae lobules read crisply; procedural leaf-like folia along the real outline (white-matter fingers, ~1.25 mm period, fissures) because the 0.5 mm template cannot resolve folia (tI = cap_i.png: phase / depth from the nearest free cerebellar surface). Tentorium = skeleton of the CSF gap between cerebellum and occipital lobe (tG.B).
+* **Corpus callosum**: roof + genu/rostrum + splenium hooks around the lateral-ventricle ends (aseg ventricle label), pale cream-gold instead of mustard.
+* **Thalamic nuclei**: MIAL67 group boundaries are drawn as soft lines (cap_e.png alpha) + tonal modulation.
+* **Structures lateral to the plane** (hippocampus, amygdala, putamen/pallidum from aseg 17/18/12+13): soft translucent fills over untinted tissue only (no outlines); label anchors computed from the visible part (cap.json ghost_pts). Labels now say "lateral to the cut".
+* **Sulci**: pial-surface gaps inside the hemisphere (outside the fsaverage pial section but inside the tissue outline) are now transparent windows onto the real folded mesh behind the plate (dark plum sulcal walls) instead of cream T1; section polylines smoothed 0.8 mm and de-slivered (stray polygon / hairline gone); the pial mesh is clipped 45 um behind the plate so no sliver stands in front.
+* **White matter fibre texture** (cap_h.png global 0.25 mm, cap_hf.png 0.04 mm window around the flight path Q -> head centre): LIC of an orientation field derived from the REAL white surface (tangential U-fibres in the 2-3 mm sub-cortical shell, radial corona-radiata fan deeper, confidence -> 0 at singular points). Stylised: the orientation field is geometric, not DTI.
+* **Meninges**: the heavy cobalt stroke is replaced by a thin soft periwinkle -> violet CSF gradient (1.3 mm) + a 0.1 mm dura line; pial arteries (procedural, lit tubes) run over the pia in the subarachnoid CSF at the 4 mm stop.
+* **Tracts**: wider alpha-blended tubes with travelling pulses, three hues (optic = teal, arcuate/frontal->motor = rose, corticospinal = amber); corticospinal spline now follows the ventral brainstem (fs coordinates); optic spline starts at the optic tract / LGN.
+* **Histology backdrop** (z -2.4 .. -3.4): fewer, larger pyramidal neurons, tubular vessels with lit centre line.
+* **Performance / flakiness**: the heavy histology shader is a separate material compiled only once z < -1.3 (`#define FINE`), so the hero frames compile a much smaller shader.
+* New files: cap_g.png (brainstem sdf / cerebellum mask / tentorium), cap_h.png, cap_hf.png, cap_i.png; assets total ~14 MB.
+
+## Still not real / known gaps
+* Section plane is parasagittal (8 mm left of the midline) by design (the cortex / neuron / synapse levels need a square-cut cortical ribbon at the locus). Midline-only structures are therefore NOT on the plate: septum pellucidum, pineal, pituitary, third/fourth ventricle shape, aqueduct, optic chiasm body, falx, superior sagittal sinus, vermis midline. A true midsagittal plate was not possible without moving the locus.
+* The medulla / cord tube, cerebellar folia, thalamic-nuclei lines, brainstem grooves and the fibre texture are stylised; tracts are hand-placed splines from textbook MNI coordinates, not tractography.
+* No arterial tree on the lateral mesh (no open vascular atlas fetched); pial arteries exist only as procedural tubes at the zoom levels where the pia is in frame.
+
+
+## Round-4 changes (blind-review fixes; run cap.py -> anat.py -> labels.py)
+* **Lateral structures removed from the plate**: hippocampus, amygdala, putamen/pallidum (x-ray ghost fills + labels), accumbens, cholinergic forebrain and optic-chiasm tints are gone; they lie 15-35 mm lateral to the plane at x_fs = -8 mm and were the 'lateral to the cut' blobs. What is tinted now is what the plane really cuts: thalamus (MIAL67 groups as tonal modulation), caudate head/body, internal capsule, ventral diencephalon, midbrain/pons/medulla, anterior commissure. New labels: lateral ventricle, internal capsule; the plane offset is a quiet note label placed in empty space.
+* **Cord**: the flat chop of the inferior cerebellar surface no longer removes the cord tube, so the medulla -> cervical cord now runs to fs z = -94 (the corticospinal tract ends inside it with a fade, no more wire into empty space).
+* **Cerebellar folia**: the folia phase now comes from a smoothed nearest-surface point (the old 1-px quantised coordinate made the teeth stair-step); folia spacing is warped, tooth length varies per folium, alternate fissures are shallow (a two-level branching pattern), and the arbor-vitae edges are classified with the pixel-gradient AA like the cortex (crisp, not blurred T1).
+* **Tentorium** skeleton is smoothed (no scribble).
+* **Cortex at 1-6 cm fields (z -1.3 .. -2.2)**: cell-scale histology only when a cell is >= 2.5 px; between that and ~4 cm the ribbon shows cortical laminae I-VI (cool boundary lines + alternating tone) and a Nissl-style stipple (dots >= 1.6 px, isotropic, density per layer); the see-through sulcal windows onto the mesh are now deep plum -> indigo CSF gradients (the hard purple shard is gone) with pial arteries running on the walls; white-matter colour no longer blends toward pink from the blurred T1; WM fibre strands are sharper and quieter.
+* **Tracts** are thinner, scale with the field of view (tube width shrinks as the camera zooms in), fade at both ends, and no longer overpaint the thalamus as fat translucent pipes. Thalamic nucleus boundary lines are much softer (no 'cracked paint').
+* **Cortical mesh** now carries a mean-curvature cavity term (umbrella operator) in its vertex colours so the folds of the lobes seen beside the plate read at every distance.
+* **CSF band** is dark indigo (no bright periwinkle stroke); frontal hot-spot bloom toned down.
+* Not done (honest gaps): a true midsagittal plate (midline-only structures: septum pellucidum, pineal, pituitary, chiasm, falx, superior sagittal sinus, third ventricle); arterial tree on the lateral mesh; 3D hippocampus/amygdala meshes behind the plate.
