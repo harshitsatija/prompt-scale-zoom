@@ -1,6 +1,17 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Prompt</title>
 <meta name="description" content="One continuous 3D zoom from a glutamate molecule through a brain, a woman typing in Bangalore, Earth and the galaxy to the edge of the observable universe.">
+<style>
+#loading{position:fixed;inset:0;z-index:20;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:22px;background:radial-gradient(ellipse at 50% 40%,#1c1f6b 0%,#0f1140 55%,#080a26 100%);color:#fff3d6;font-family:Georgia,"Iowan Old Style",serif;text-align:center;padding:24px;transition:opacity .6s ease}
+#loading.out{opacity:0;pointer-events:none}
+#loading h2{margin:0;font:italic 400 clamp(40px,8vw,72px)/1 Georgia,"Iowan Old Style",serif}
+#loading p{margin:0;font:600 11px system-ui,Helvetica,Arial,sans-serif;letter-spacing:.2em;text-transform:uppercase;color:#ff9f1c}
+#load-bar{width:min(420px,70vw);height:3px;background:rgba(255,243,214,.18);border-radius:2px;overflow:hidden}
+#load-fill{height:100%;width:0;background:#ff9f1c;border-radius:2px;transition:width .25s ease}
+#load-msg{font:13px/1.5 system-ui,Helvetica,Arial,sans-serif;color:#a9b0ff;min-height:20px;font-variant-numeric:tabular-nums}
+#load-hint{font:italic 14px/1.5 Georgia,serif;color:rgba(255,243,214,.6);max-width:420px}
+@media (prefers-reduced-motion:reduce){#loading,#load-fill{transition:none}}
+</style>
 </head><body>
 <style>
 :root{--ink:#0f1140;--paper:#fff3d6;--dim:#a9b0ff;--amber:#ff9f1c;--teal:#12a595;--line:#3a3fb5;--deep:#1c1f6b}
@@ -46,7 +57,25 @@ dialog .close{position:absolute;right:12px;top:8px;background:none;border:0;colo
 #clock{display:none!important}
 
 </style>
-<noscript>This page needs JavaScript and WebGL.</noscript><canvas id="c" role="img" aria-label="An interactive logarithmic zoom through one continuous 3D world. A woman in Bangalore types a prompt into a laptop. Zoom in through the brain, neurons, a synapse and a molecule. Zoom out through her room, the city, India, Earth, the solar system, the galaxy and the observable universe."></canvas>
+<noscript>This page needs JavaScript and WebGL.</noscript><div id="loading" role="status" aria-live="polite"><p>A question, from a molecule to the universe</p><h2>Prompt</h2><div id="load-bar"><div id="load-fill"></div></div><div id="load-msg">Starting</div><div id="load-hint">The first visit downloads about 160 MB of real data. After that, your browser keeps it.</div></div>
+<script>
+(function () {
+  var fill = document.getElementById('load-fill'), msg = document.getElementById('load-msg'), box = document.getElementById('loading');
+  var TOTAL = 150e6, bytes = 0, done = 0, N = 13, finished = false, last = 'Downloading';
+  var NAMES = { molecule: 'a glutamate molecule', synapse: 'a synapse', neuron: 'a neuron', cortex: 'the cortex', brain: 'the brain', person: 'her room', building: 'her building', city: 'Bangalore', earth: 'Earth', solar: 'the solar system', stars: 'the stars', galaxy: 'the galaxy', web: 'the cosmic web' };
+  function render() { var f = finished ? 1 : Math.min(0.97, 0.65 * Math.min(1, bytes / TOTAL) + 0.35 * (done / N)); fill.style.width = (f * 100).toFixed(1) + '%';
+    msg.textContent = finished ? 'Ready' : (Math.round(bytes / 1e6) + ' MB downloaded \u00b7 ' + last); }
+  window.__prog = { level: function (id) { done++; last = (NAMES[id] ? 'built ' + NAMES[id] : 'building') + ' (' + done + ' of ' + N + ')'; render(); },
+    done: function () { finished = true; render(); setTimeout(function () { box.classList.add('out'); setTimeout(function () { box.remove(); }, 700); }, 250); } };
+  var of = window.fetch.bind(window);
+  window.fetch = function () { return of.apply(null, arguments).then(function (r) { if (!r.body || !r.ok) return r; var rd = r.body.getReader();
+      var s = new ReadableStream({ pull: function (c) { return rd.read().then(function (x) { if (x.done) { c.close(); return; } bytes += x.value.byteLength; render(); c.enqueue(x.value); }); }, cancel: function (re) { return rd.cancel(re); } });
+      return new Response(s, { status: r.status, statusText: r.statusText, headers: r.headers }); }); };
+  window.addEventListener('error', function () { if (!finished) msg.textContent = 'Something failed to load. Reload to try again.'; }, true);
+  render();
+})();
+</script>
+<canvas id="c" role="img" aria-label="An interactive logarithmic zoom through one continuous 3D world. A woman in Bangalore types a prompt into a laptop. Zoom in through the brain, neurons, a synapse and a molecule. Zoom out through her room, the city, India, Earth, the solar system, the galaxy and the observable universe."></canvas>
 <div id="tags"></div>
 <header id="title"><h1>Prompt<span>A question, from a molecule to the universe</span></h1></header>
 <button id="notes-open" type="button">Field notes <span aria-hidden="true">&#8599;</span></button>

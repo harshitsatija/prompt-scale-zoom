@@ -66,11 +66,11 @@ const only = q.get('only') ? q.get('only').split(',') : null;
 const levels = [], labels = [];
 async function loadLevels() {
   const order = ['brain'], rest = LEVELS.filter((l) => !order.includes(l.id)).map((l) => l.id); const load = async (id) => { const meta = LEVELS.find((l) => l.id === id); if (only && !only.includes(id)) return null;
-    try { const mod = await import('../levels/' + id + '.js'); const lv = await mod.default(ctx); lv.id = id; lv.zMin = lv.zMin ?? meta.zMin; lv.zMax = lv.zMax ?? meta.zMax; lv.group.userData.levelId = id; lv.fade = { value: 0, inv: { value: 0 } }; return lv; } catch (err) { console.error('LEVEL_FAIL ' + id + ': ' + (err && err.stack ? err.stack.split('\n').slice(0, 3).join(' | ') : err)); return null; } };
+    try { const mod = await import('../levels/' + id + '.js'); const lv = await mod.default(ctx); lv.id = id; lv.zMin = lv.zMin ?? meta.zMin; lv.zMax = lv.zMax ?? meta.zMax; lv.group.userData.levelId = id; lv.fade = { value: 0, inv: { value: 0 } }; if (window.__prog) window.__prog.level(id); return lv; } catch (err) { if (window.__prog) window.__prog.level(id); console.error('LEVEL_FAIL ' + id + ': ' + (err && err.stack ? err.stack.split('\n').slice(0, 3).join(' | ') : err)); return null; } };
   const loaded = {}; for (const id of order) loaded[id] = await load(id); const others = await Promise.all(rest.map(async (id) => [id, await load(id)])); others.forEach(([id, lv]) => { loaded[id] = lv; });
   LEVELS.forEach((m) => { const lv = loaded[m.id]; if (lv) { levels.push(lv); root.add(lv.group); (lv.labels || []).forEach((l) => labels.push(Object.assign({ level: lv }, l))); } });
 }
-$('c').dataset.loading = '1'; await loadLevels(); $('c').dataset.loading = '0'; window.__levels = levels.map((l) => l.id); window.__LV = levels;
+$('c').dataset.loading = '1'; await loadLevels(); $('c').dataset.loading = '0'; if (window.__prog) window.__prog.done(); window.__levels = levels.map((l) => l.id); window.__LV = levels;
 const labelEls = labels.map((l) => { const d = document.createElement('div'); d.className = 'tag3'; d.innerHTML = '<i></i><span>' + l.text + '</span>'; $('tags').appendChild(d); return d; });
 // ---------------- nested scales ----------------
 // Every level owns a ball of real space centred on its anchor, as wide as the field it was built for. The balls are projected to the screen and
